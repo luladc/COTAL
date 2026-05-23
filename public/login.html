@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iniciar sesión — Marketplace</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="auth-card">
+      <div class="auth-header">
+        <a href="/" class="brand-link"><span class="brand-icon">🛒</span><span class="brand-name">Marketplace</span></a>
+        <h1>Bienvenido de vuelta</h1>
+        <p>Ingresa a tu cuenta para continuar</p>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="tu@email.com" required class="form-input" />
+        </div>
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" name="password" placeholder="••••••••" required class="form-input" />
+        </div>
+        <div id="errorMsg" class="error-msg" style="display:none"></div>
+        <button type="submit" class="btn-primary full-width" id="submitBtn">
+          <span id="btnText">Iniciar sesión</span>
+          <span id="btnLoader" class="spinner-sm" style="display:none"></span>
+        </button>
+      </form>
+      <div class="auth-footer">
+        ¿No tienes cuenta? <a href="/register.html">Registrarse</a>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Redirigir si ya está logueado
+    if (localStorage.getItem('token')) {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      window.location.href = user.role === 'OFERTANTE' ? '/dashboard-ofertante.html'
+        : user.role === 'ADMIN' ? '/dashboard-admin.html' : '/';
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn    = document.getElementById('submitBtn');
+      const loader = document.getElementById('btnLoader');
+      const errDiv = document.getElementById('errorMsg');
+      btn.disabled = true;
+      loader.style.display = 'inline-block';
+      errDiv.style.display = 'none';
+
+      const body = {
+        email:    document.getElementById('email').value,
+        password: document.getElementById('password').value,
+      };
+      try {
+        const res  = await fetch('/api/auth/login', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión');
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        if (data.user.role === 'OFERTANTE')  window.location.href = '/dashboard-ofertante.html';
+        else if (data.user.role === 'ADMIN') window.location.href = '/dashboard-admin.html';
+        else                                 window.location.href = '/';
+      } catch (err) {
+        errDiv.textContent = err.message;
+        errDiv.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        loader.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "marketplace-sprint2",
+  "version": "2.0.0",
+  "description": "Plataforma de conexión Ofertante/Demandante — Sprint 2 (SDD)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "jest --runInBand --forceExit",
+    "test:verbose": "jest --runInBand --forceExit --verbose"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testTimeout": 15000
+  },
+  "keywords": [
+    "express",
+    "sqlite",
+    "jwt",
+    "marketplace"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.10.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.2",
+    "jsonwebtoken": "^9.0.3"
+  }
+}

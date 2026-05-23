@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi Panel — Ofertante</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="dashboard-page">
+  <nav class="navbar">
+    <div class="nav-brand"><span class="brand-icon">🛒</span><span class="brand-name">Panel Ofertante</span></div>
+    <div class="nav-links">
+      <a href="/" class="nav-link">Ver Tienda Pública</a>
+      <span class="nav-user-name" id="userName">👤 Usuario</span>
+      <button class="btn-secondary-sm" id="logoutBtn">Salir</button>
+    </div>
+  </nav>
+
+  <div class="container dashboard-container">
+    <aside class="dashboard-sidebar">
+      <div class="sidebar-menu">
+        <a href="#" class="sidebar-link active">Mis Productos</a>
+      </div>
+      <div class="sidebar-box">
+        <h4>Reglas de Moderación</h4>
+        <p>Si editas título, descripción, categoría o precio de un producto aprobado, volverá al estado <strong>PENDING</strong> para revisión.</p>
+      </div>
+    </aside>
+
+    <main class="dashboard-main">
+      <div class="dashboard-header">
+        <div>
+          <h2>Mis Productos y Servicios</h2>
+          <p>Gestiona tus publicaciones. Solo las aprobadas son visibles al público.</p>
+        </div>
+        <button class="btn-primary" id="openCreateModalBtn">Crear Nuevo</button>
+      </div>
+
+      <div id="msgBox" class="msg-box" style="display:none"></div>
+
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Título / Categoría</th>
+              <th>Precio</th>
+              <th>Estado</th>
+              <th>Fecha Creado</th>
+              <th class="text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="productsTableBody">
+            <tr><td colspan="5" class="text-center">Cargando tus productos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Crear/Editar -->
+  <div id="productModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Crear Producto</h3>
+        <button class="modal-close" id="closeModalBtn">&times;</button>
+      </div>
+      <form id="productForm">
+        <input type="hidden" id="productId" />
+        <div class="form-group">
+          <label for="title">Título *</label>
+          <input type="text" id="title" class="form-input" required maxlength="200" />
+        </div>
+        <div class="form-group">
+          <label for="category">Categoría *</label>
+          <input type="text" id="category" class="form-input" required />
+        </div>
+        <div class="form-group">
+          <label for="price">Precio *</label>
+          <input type="number" id="price" class="form-input" required min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label for="description">Descripción *</label>
+          <textarea id="description" class="form-input" required rows="4"></textarea>
+        </div>
+        <div id="modalMsg" class="error-msg" style="display:none"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="cancelModalBtn">Cancelar</button>
+          <button type="submit" class="btn-primary" id="saveBtn">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token || user.role !== 'OFERTANTE') {
+      window.location.href = '/login.html';
+    }
+
+    document.getElementById('userName').textContent = `👤 ${user.name}`;
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.clear(); window.location.href = '/';
+    });
+
+    const msgBox = document.getElementById('msgBox');
+    function showMsg(msg, isError = false) {
+      msgBox.textContent = msg;
+      msgBox.className = `msg-box ${isError ? 'msg-error' : 'msg-success'}`;
+      msgBox.style.display = 'block';
+      setTimeout(() => msgBox.style.display = 'none', 5000);
+    }
+
+    async function loadProducts() {
+      try {
+        const res = await fetch('/api/products/my/list', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        renderTable(data.products || []);
+      } catch (err) {
+        showMsg('Error cargando productos', true);
+      }
+    }
+
+    function renderTable(products) {
+      const tbody = document.getElementById('productsTableBody');
+      if (!products.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500 py-6">No tienes productos publicados.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = products.map(p => `
+        <tr>
+          <td>
+            <div class="font-medium">${escHtml(p.title)}</div>
+            <div class="text-xs text-slate-500 mt-1">${escHtml(p.category)}</div>
+          </td>
+          <td>$${Number(p.price).toLocaleString('es-CL')}</td>
+          <td><span class="status-badge status-${p.status.toLowerCase()}">${p.status}</span></td>
+          <td class="text-slate-500 text-sm">${new Date(p.createdAt).toLocaleDateString()}</td>
+          <td class="text-right">
+            <button class="btn-icon text-indigo" onclick='openEdit(${JSON.stringify(p).replace(/'/g, "&apos;")})'>✏️</button>
+            <button class="btn-icon text-red" onclick="deleteProduct(${p.id})">🗑️</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // ── Modal & CRUD ────────────────────────────────────────────────────────
+    const modal = document.getElementById('productModal');
+    const form  = document.getElementById('productForm');
+
+    function openModal() { modal.classList.add('active'); document.getElementById('modalMsg').style.display = 'none'; }
+    function closeModal() { modal.classList.remove('active'); form.reset(); document.getElementById('productId').value = ''; }
+
+    document.getElementById('openCreateModalBtn').addEventListener('click', () => {
+      document.getElementById('modalTitle').textContent = 'Nuevo Producto';
+      openModal();
+    });
+    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+    document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+
+    window.openEdit = function(p) {
+      document.getElementById('modalTitle').textContent = 'Editar Producto (Volverá a PENDING)';
+      document.getElementById('productId').value = p.id;
+      document.getElementById('title').value = p.title;
+      document.getElementById('category').value = p.category;
+      document.getElementById('price').value = p.price;
+      document.getElementById('description').value = p.description;
+      openModal();
+    };
+
+    window.deleteProduct = async function(id) {
+      if (!confirm('¿Seguro que deseas eliminar este producto?')) return;
+      try {
+        const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        if (res.ok) { showMsg('Producto eliminado'); loadProducts(); }
+        else { const d = await res.json(); showMsg(d.error || 'Error al eliminar', true); }
+      } catch (e) { showMsg('Error de red', true); }
+    };
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('productId').value;
+      const body = {
+        title: document.getElementById('title').value,
+        category: document.getElementById('category').value,
+        price: document.getElementById('price').value,
+        description: document.getElementById('description').value,
+      };
+      
+      const isEdit = !!id;
+      const url = isEdit ? `/api/products/${id}` : '/api/products';
+      const method = isEdit ? 'PUT' : 'POST';
+
+      try {
+        document.getElementById('saveBtn').disabled = true;
+        const res = await fetch(url, {
+          method, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          document.getElementById('modalMsg').textContent = data.error || data.errors?.[0]?.msg || 'Error';
+          document.getElementById('modalMsg').style.display = 'block';
+        } else {
+          closeModal();
+          showMsg(data.message);
+          loadProducts();
+        }
+      } finally {
+        document.getElementById('saveBtn').disabled = false;
+      }
+    });
+
+    loadProducts();
+  </script>
+</body>
+</html>

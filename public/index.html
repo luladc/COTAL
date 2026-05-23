@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marketplace — Plataforma de Productos y Servicios</title>
+  <meta name="description" content="Conectamos ofertantes y demandantes de productos y servicios." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">🛒</span>
+      <span class="brand-name">Marketplace</span>
+    </div>
+    <div class="nav-links" id="navLinks">
+      <a href="/" class="nav-link active">Inicio</a>
+      <span id="navAuth">
+        <a href="/login.html" class="nav-link">Iniciar sesión</a>
+        <a href="/register.html" class="btn-primary-sm">Registrarse</a>
+      </span>
+      <span id="navUser" style="display:none">
+        <span class="nav-user-name" id="navUserName"></span>
+        <a href="#" id="dashboardLink" class="nav-link">Mi Panel</a>
+        <button class="btn-secondary-sm" id="logoutBtn">Salir</button>
+      </span>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-badge">✨ Sprint 2 — Productos Verificados</div>
+      <h1>Descubre servicios y <span class="gradient-text">productos de calidad</span></h1>
+      <p>Solo mostramos ofertas verificadas y aprobadas por nuestro equipo.</p>
+      <div class="hero-actions">
+        <a href="/register.html" class="btn-primary" id="heroRegisterBtn">Publicar mi servicio</a>
+        <a href="#products" class="btn-secondary">Ver productos</a>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-card"><div class="stat-num" id="statCount">—</div><div class="stat-label">Servicios activos</div></div>
+      <div class="stat-card"><div class="stat-num">100%</div><div class="stat-label">Verificados</div></div>
+      <div class="stat-card"><div class="stat-num">3</div><div class="stat-label">Roles</div></div>
+    </div>
+  </section>
+
+  <!-- FILTROS -->
+  <section class="filters-section" id="products">
+    <div class="container">
+      <div class="filters-bar">
+        <input type="text" id="searchInput" placeholder="Buscar productos..." class="search-input" />
+        <select id="categoryFilter" class="select-input">
+          <option value="">Todas las categorías</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRODUCTOS -->
+  <section class="products-section">
+    <div class="container">
+      <div id="loadingState" class="loading-state">
+        <div class="spinner"></div>
+        <p>Cargando productos aprobados...</p>
+      </div>
+      <div id="emptyState" class="empty-state" style="display:none">
+        <div class="empty-icon">📦</div>
+        <h3>No hay productos disponibles</h3>
+        <p>Sé el primero en publicar un servicio o producto.</p>
+        <a href="/register.html" class="btn-primary">Registrarse como ofertante</a>
+      </div>
+      <div id="productsGrid" class="products-grid" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features-section">
+    <div class="container">
+      <h2 class="section-title">¿Cómo funciona?</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📝</div>
+          <h3>Publica tu oferta</h3>
+          <p>Regístrate como ofertante y crea tus productos o servicios.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✅</div>
+          <h3>Revisión de calidad</h3>
+          <p>El administrador revisa y aprueba cada publicación.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🌐</div>
+          <h3>Visibilidad pública</h3>
+          <p>Solo productos aprobados son visibles para los demandantes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>© 2026 Marketplace — Sprint 2 · SDD con Node.js + Express + SQLite</p>
+  </footer>
+
+  <script>
+    const API = '/api';
+
+    // ── Auth state ──────────────────────────────────────────────────────────
+    function getToken() { return localStorage.getItem('token'); }
+    function getUser()  { return JSON.parse(localStorage.getItem('user') || 'null'); }
+
+    function updateNav() {
+      const user = getUser();
+      if (user) {
+        document.getElementById('navAuth').style.display = 'none';
+        document.getElementById('navUser').style.display = 'flex';
+        document.getElementById('navUserName').textContent = `👤 ${user.name}`;
+        const dash = document.getElementById('dashboardLink');
+        if (user.role === 'OFERTANTE')  dash.href = '/dashboard-ofertante.html';
+        else if (user.role === 'ADMIN') dash.href = '/dashboard-admin.html';
+        else                            dash.style.display = 'none';
+        document.getElementById('heroRegisterBtn').textContent = 'Mi Panel';
+        document.getElementById('heroRegisterBtn').href =
+          user.role === 'OFERTANTE' ? '/dashboard-ofertante.html' : '/dashboard-admin.html';
+      }
+    }
+
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    });
+
+    // ── Load products ───────────────────────────────────────────────────────
+    let allProducts = [];
+
+    async function loadProducts() {
+      try {
+        const res = await fetch(`${API}/products`);
+        const data = await res.json();
+        allProducts = data.products || [];
+        document.getElementById('statCount').textContent = allProducts.length;
+
+        // Poblar categorías
+        const cats = [...new Set(allProducts.map(p => p.category))];
+        const sel = document.getElementById('categoryFilter');
+        cats.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c; opt.textContent = c;
+          sel.appendChild(opt);
+        });
+
+        renderProducts(allProducts);
+      } catch (e) {
+        console.error(e);
+        document.getElementById('loadingState').innerHTML = '<p class="error-text">Error al cargar productos.</p>';
+      }
+    }
+
+    function renderProducts(products) {
+      const loading = document.getElementById('loadingState');
+      const empty   = document.getElementById('emptyState');
+      const grid    = document.getElementById('productsGrid');
+
+      loading.style.display = 'none';
+
+      if (!products.length) {
+        empty.style.display = 'flex';
+        grid.style.display  = 'none';
+        return;
+      }
+      empty.style.display  = 'none';
+      grid.style.display   = 'grid';
+      grid.innerHTML = products.map(p => `
+        <article class="product-card">
+          <div class="product-badge">✅ Verificado</div>
+          <h3 class="product-title">${escHtml(p.title)}</h3>
+          <p class="product-desc">${escHtml(p.description)}</p>
+          <div class="product-meta">
+            <span class="category-tag">${escHtml(p.category)}</span>
+            <span class="product-price">$${Number(p.price).toLocaleString('es-CL')}</span>
+          </div>
+          <div class="product-footer">
+            <span class="owner-name">👤 ${escHtml(p.ownerName)}</span>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function escHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    // ── Filtros ─────────────────────────────────────────────────────────────
+    function filterProducts() {
+      const q   = document.getElementById('searchInput').value.toLowerCase();
+      const cat = document.getElementById('categoryFilter').value;
+      const filtered = allProducts.filter(p =>
+        (!q   || p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)) &&
+        (!cat || p.category === cat)
+      );
+      renderProducts(filtered);
+    }
+
+    document.getElementById('searchInput').addEventListener('input', filterProducts);
+    document.getElementById('categoryFilter').addEventListener('change', filterProducts);
+
+    // ── Init ────────────────────────────────────────────────────────────────
+    updateNav();
+    loadProducts();
+  </script>
+</body>
+</html>
